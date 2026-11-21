@@ -1,0 +1,14 @@
+name: Idea or new bait
+description: Suggest a feature, or a place stealers look that SENTIENT1 should cover
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like SENTIENT1 to do?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why? Links to malware analyses are great.

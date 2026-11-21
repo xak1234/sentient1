@@ -1,0 +1,11 @@
+/dist/
+*.exe
+*.test
+*.out
+/desktop/bin/
+/desktop/obj/
+*.zip
+
+/releases/
+*.user
+*.suo

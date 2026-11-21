@@ -1,0 +1,39 @@
+name: Bug report
+description: Something doesn't work the way it should
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Found a way to bypass or abuse SENTIENT1?** Please don't post it here: [report it privately](https://github.com/xak1234/sentient1/security/advisories/new).
+  - type: input
+    id: version
+    attributes:
+      label: SENTIENT1 version
+      description: Output of `sentient1 --version`
+      placeholder: sentient1 1.1.0
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: Windows 11 24H2, 64-bit
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+  - type: textarea
+    id: logs
+    attributes:
+      label: sentient1 doctor output and the end of service.log
+      description: '`sentient1 doctor`, and the last ~50 lines of `C:\ProgramData\sentient1Monitor\service.log`. Remove anything private.'
+      render: text

@@ -1,0 +1,32 @@
+name: Windows build and checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '8.0.x'
+      - name: Format, vet, test and build Windows desktop
+        shell: pwsh
+        run: ./scripts/build.ps1 -Version 1.1.0
+      - name: Selective Windows audit and WFP checks
+        shell: pwsh
+        env:
+          SENTIENT1_INTEGRATION: '1'
+        run: |
+          go test -count=1 -v ./internal/integration -run '^(TestBaitReadIsDetected|TestBlockProgram)$'
+          if ($LASTEXITCODE -ne 0) { throw 'Windows integration checks failed.' }

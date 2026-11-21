@@ -1,0 +1,25 @@
+name: False positive
+description: A legitimate program tripped a bait
+labels: [false-positive]
+body:
+  - type: input
+    id: program
+    attributes:
+      label: Program
+      description: Name, publisher and where it's installed
+      placeholder: Backblaze, signed by Backblaze Inc., C:\Program Files\Backblaze\bztransmit64.exe
+    validations:
+      required: true
+  - type: textarea
+    id: alert
+    attributes:
+      label: Alert details
+      description: Output of `sentient1 alerts show <id>`. Remove anything private.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: SENTIENT1 version
+      placeholder: 1.1.0
