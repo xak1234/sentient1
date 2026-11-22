@@ -7,6 +7,7 @@ namespace Sentient1;
 
 internal sealed class MainForm : Form
 {
+    private static string DesktopVersion => typeof(MainForm).Assembly.GetName().Version?.ToString(3) ?? "dev";
     private readonly System.Windows.Forms.Timer timer = new() { Interval = 5000 };
     private readonly Label stateLabel = Theme.Label("Connecting to monitor…", 14, Theme.Green, true);
     private readonly Label footer = Theme.Label("Reading local status", 9, Theme.Muted);
@@ -45,6 +46,7 @@ internal sealed class MainForm : Form
     private readonly Icon appIcon;
     private readonly ActivitySignal activity = new();
     private readonly List<Button> actionButtons = [];
+    private Button? freezeButton;
     private Func<Task>? pendingAction;
     private bool refreshing;
     private bool acting;
@@ -94,7 +96,7 @@ internal sealed class MainForm : Form
         var sidebarFoot = Theme.Flow(true);
         sidebarFoot.Controls.Add(Theme.Label("AUDIT ENGINE", 8, Theme.Green, true));
         sidebarFoot.Controls.Add(Theme.Label("Local evidence\nBackground monitoring\nManual updates", 9, Theme.Muted));
-        sidebarFoot.Controls.Add(Theme.Label("sentient1  /  1.1.0", 8, Theme.Muted)); sidebar.Controls.Add(sidebarFoot, 0, 2);
+        sidebarFoot.Controls.Add(Theme.Label($"sentient1  /  {DesktopVersion}", 8, Theme.Muted)); sidebar.Controls.Add(sidebarFoot, 0, 2);
         body.Controls.Add(sidebar, 0, 0);
         var content = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, Padding = new Padding(12, 8, 0, 12) };
         content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -125,7 +127,7 @@ internal sealed class MainForm : Form
         timer.Tick += async (_, _) => await RefreshSnapshot();
         Shown += async (_, _) =>
         {
-            await Navigate("Overview"); Log("sentient1 1.1.0 · local protection console ready.");
+            await Navigate("Overview"); Log($"sentient1 {DesktopVersion} · local protection console ready.");
             await RefreshSnapshot(); timer.Start();
             if (uiTest) await RunUiTest();
         };
@@ -159,10 +161,15 @@ internal sealed class MainForm : Form
     {
         var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        detections.Columns[2].FillWeight = 240;
+        detections.Columns[2].DefaultCellStyle.WrapMode = DataGridViewTriState.True;
+        detections.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells;
         var filters = Theme.Flow(); severity.Width = 160; filters.Controls.Add(filter); filters.Controls.Add(severity); layout.Controls.Add(filters, 0, 0);
         var split = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal, SplitterWidth = 6, BackColor = Theme.Border };
         split.Panel1.Controls.Add(detections); split.Panel2.Padding = new Padding(10); split.Panel2.BackColor = Theme.Surface; split.Panel2.Controls.Add(evidence); layout.Controls.Add(split, 0, 1);
         var actions = Theme.Flow(); actions.Padding = new Padding(0, 10, 0, 0);
+        freezeButton = AddButton(actions, "Freeze once", () => IncidentAction("freeze", "Pause this reader until you choose Resume once? All components in this process will pause. Other processes and the automatic response policy are unchanged."));
+        freezeButton.Enabled = false;
         AddButton(actions, "Resume once", () => IncidentAction("resume", "Resume this reader and restore its program access? It will not be permanently trusted."));
         AddButton(actions, "Trust reader", () => IncidentAction("trust", "Trust and resume this reader? Only continue after verifying its evidence and publisher."));
         AddButton(actions, "Kill frozen", () => IncidentAction("kill", "Terminate this alert's frozen processes? Their unsaved work will be lost."));
@@ -198,10 +205,11 @@ internal sealed class MainForm : Form
         pendingAction = action; confirmText.Text = message; mainLayout.RowStyles[2].Height = 128; confirmPanel.Visible = true;
     }
     private void ClearConfirmation() { pendingAction = null; confirmPanel.Visible = false; mainLayout.RowStyles[2].Height = 0; }
-    private void AddButton(FlowLayoutPanel panel, string text, Func<Task> action, bool primary = false)
+    private Button AddButton(FlowLayoutPanel panel, string text, Func<Task> action, bool primary = false)
     {
         var button = Theme.Button(text, primary); actionButtons.Add(button);
         button.Click += async (_, _) => { if (!acting) await Guard(action); }; panel.Controls.Add(button);
+        return button;
     }
     private async Task Guard(Func<Task> action)
     {
@@ -243,6 +251,7 @@ internal sealed class MainForm : Form
             if (!IsDisposed)
             {
                 foreach (var button in actionButtons) button.Enabled = true;
+                if (freezeButton is not null) freezeButton.Enabled = false;
                 foreach (var button in navigation.Values) button.Enabled = true;
                 setup.Enabled = true; terminalState.Text = "LOCAL SESSION";
                 await RefreshSnapshot(); timer.Start();
@@ -252,6 +261,11 @@ internal sealed class MainForm : Form
     private Task IncidentAction(string operation, string question)
     {
         if (detections.CurrentRow?.Tag is not string id) { Log("Select a detection first."); return Task.CompletedTask; }
+        var selected = alerts.FirstOrDefault(x => S(x, "id") == id);
+        if (operation == "trust" && selected.ValueKind == JsonValueKind.Object &&
+            selected.TryGetProperty("process", out var process) && process.ValueKind == JsonValueKind.Object &&
+            process.TryGetProperty("hosted", out var hosted) && hosted.ValueKind == JsonValueKind.Object)
+            question = "Approve this incident and resume the reader? Shared hosts are approved once; no permanent trust rule will be added.";
         Ask(question, () => RunOperation(new EngineRequest(operation, id))); return Task.CompletedTask;
     }
     private void RestoreWindow() { Show(); WindowState = FormWindowState.Normal; Activate(); tray.Visible = false; }
@@ -300,7 +314,7 @@ internal sealed class MainForm : Form
             foreach (var alert in alerts.Take(4)) text.AppendLine($"{LocalTime(S(alert, "time"))}  ·  {S(alert, "tier").ToUpperInvariant()}  ·  {S(alert, "title")}");
             text.AppendLine().AppendLine("MONITORING CONTINUES IN THE BACKGROUND").AppendLine("Minimise keeps this dashboard in the taskbar and adds its shield to the notification area. Closing the dashboard leaves the installed monitor service running.");
             text.AppendLine().AppendLine("Decoys are additional tripwires. Malware that avoids them can escape detection, and legitimate backup tools can trigger them. Keep Microsoft Defender enabled.");
-            overview.Text = text.ToString(); footer.Text = $"Updated {DateTime.Now:T}  ·  {alerts.Count} recent detections  ·  Refresh 5s  ·  Engine {S(data, "version")}  /  Desktop 1.1.0";
+            overview.Text = text.ToString(); footer.Text = $"Updated {DateTime.Now:T}  ·  {alerts.Count} recent detections  ·  Refresh 5s  ·  Engine {S(data, "version")}  /  Desktop {DesktopVersion}";
             loadedOnce = true; lastError = "";
         }
         catch (Exception ex)
@@ -309,6 +323,7 @@ internal sealed class MainForm : Form
             activity.UpdateStatus(false, false, default);
             stateLabel.Text = "●  Status unavailable"; stateLabel.ForeColor = Theme.Amber;
             footer.Text = (loadedOnce ? "Displayed data is stale. " : "") + ex.Message;
+            if (freezeButton is not null) freezeButton.Enabled = false;
             if (lastError != ex.Message) { Log("ERROR  " + footer.Text); lastError = ex.Message; }
         }
         finally { refreshing = false; }
@@ -326,7 +341,7 @@ internal sealed class MainForm : Form
             var tier = S(alert, "tier");
             if (severity.SelectedIndex > 0 && tier != severity.Text) continue;
             if (!string.IsNullOrWhiteSpace(filter.Text) && !alert.GetRawText().Contains(filter.Text, StringComparison.OrdinalIgnoreCase)) continue;
-            var reader = alert.TryGetProperty("process", out var process) && process.ValueKind == JsonValueKind.Object ? Path.GetFileName(S(process, "image")) : S(alert, "title");
+            var reader = alert.TryGetProperty("process", out var process) && process.ValueKind == JsonValueKind.Object ? ReaderName(process) : S(alert, "title");
             var row = detections.Rows[detections.Rows.Add(LocalTime(S(alert, "time")), tier, reader, S(alert, "status"), B(alert, "test") ? "Safe test" : B(alert, "instant") ? "Oplock inference" : "Audit / health event")];
             row.Tag = S(alert, "id"); row.Cells[1].Style.ForeColor = tier switch { "critical" => Theme.Red, "warn" => Theme.Amber, _ => Theme.Green };
             if (S(alert, "id") == selected) detections.CurrentCell = row.Cells[0];
@@ -336,9 +351,44 @@ internal sealed class MainForm : Form
     }
     private void ShowEvidence()
     {
+        if (freezeButton is not null) freezeButton.Enabled = false;
         if (detections.CurrentRow?.Tag is not string id) { evidence.Text = "Select a detection to inspect its recorded evidence."; return; }
         var alert = alerts.FirstOrDefault(x => S(x, "id") == id);
-        if (alert.ValueKind == JsonValueKind.Object) evidence.Text = JsonSerializer.Serialize(alert, new JsonSerializerOptions { WriteIndented = true });
+        if (alert.ValueKind == JsonValueKind.Object)
+        {
+            evidence.Text = FormatEvidence(alert);
+            if (freezeButton is not null && alert.TryGetProperty("controls", out var controls))
+                freezeButton.Enabled = !acting && B(controls, "canFreeze");
+        }
+    }
+
+    private static string ReaderName(JsonElement process) => S(process, "displayName") is { Length: > 0 } name ? name : Path.GetFileName(S(process, "image"));
+
+    internal static string FormatEvidence(JsonElement alert)
+    {
+        var text = new StringBuilder();
+        if (alert.TryGetProperty("controls", out var controls))
+            text.AppendLine("FREEZE ONCE: " + S(controls, "freezeReason")).AppendLine();
+        if (alert.TryGetProperty("process", out var process) && process.ValueKind == JsonValueKind.Object)
+        {
+            text.AppendLine(ReaderName(process)).AppendLine("Process ID: " + N(process, "pid")).AppendLine("Executable: " + S(process, "image"));
+            foreach (var bait in Array(alert, "baits"))
+                text.AppendLine().AppendLine("File " + S(bait, "access") + ": " + S(bait, "name")).AppendLine(S(bait, "path"));
+            if (process.TryGetProperty("hosted", out var hosted) && hosted.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var component in Array(hosted, "components"))
+                {
+                    text.AppendLine().AppendLine("Component: " + S(component, "name"));
+                    if (S(component, "module") is { Length: > 0 } module) text.AppendLine("File: " + module);
+                    text.AppendLine("Evidence: " + S(component, "source"));
+                    if (component.TryGetProperty("signature", out var signature))
+                        text.AppendLine("Component signature: " + (B(signature, "valid") ? "Valid — " + S(signature, "signer") : "Not verified as valid"));
+                }
+                text.AppendLine().AppendLine(S(hosted, "note"));
+            }
+        }
+        text.AppendLine().AppendLine("RECORDED EVIDENCE").AppendLine();
+        return text.Append(JsonSerializer.Serialize(alert, new JsonSerializerOptions { WriteIndented = true })).ToString();
     }
     private async Task ExportReport()
     {

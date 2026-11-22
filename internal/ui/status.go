@@ -195,7 +195,7 @@ func AlertTable(list []*alerts.Alert, w int) string {
 	var b strings.Builder
 	whoW := 8 // "PROGRAM", or the longest name up to 22
 	for _, a := range list {
-		whoW = max(whoW, min(lipgloss.Width(a.ExeName()), 22))
+		whoW = max(whoW, min(lipgloss.Width(a.ReaderName()), 36))
 	}
 	whatW := w - 2 - 12 - 2 - 12 - 2 - whoW - 2 - 6
 	head := fmt.Sprintf("  %-12s  %-12s  %-*s  %-*s  %s", "WHEN", "SEVERITY", whoW, "PROGRAM", whatW, "WHAT IT READ", "ID")
@@ -235,7 +235,7 @@ func AlertTable(list []*alerts.Alert, w int) string {
 			}
 		}
 		tier := lipgloss.NewStyle().Width(12).Render(TierDot(a.Tier) + " " + TierWord(a.Tier))
-		who := lipgloss.NewStyle().Width(whoW).Render(Plain.Render(Truncate(a.ExeName(), whoW)))
+		who := lipgloss.NewStyle().Width(whoW).Render(Plain.Render(Truncate(a.ReaderName(), whoW)))
 		whatCol := lipgloss.NewStyle().Width(whatW).Render(Truncate(what, whatW))
 		b.WriteString(fmt.Sprintf("  %s  %s  %s  %s  %s\n", Dim.Render(when), tier, who, whatCol, Fainter.Render(shortID(a.ID))))
 		// A second line only when there's something to say about it.
@@ -279,7 +279,7 @@ func AlertDetail(a *alerts.Alert) string {
 	}
 	if p := a.Process; p != nil {
 		b.WriteString(Heading("Reader") + "\n")
-		rows := [][2]string{{"Process", fmt.Sprintf("%s (pid %d)", a.ExeName(), p.PID)}}
+		rows := [][2]string{{"Process", fmt.Sprintf("%s (pid %d)", a.ReaderName(), p.PID)}}
 		if p.Image != "" {
 			rows = append(rows, [2]string{"Path", p.Image})
 		}
@@ -311,6 +311,9 @@ func AlertDetail(a *alerts.Alert) string {
 			rows = append(rows, [2]string{label, v})
 		}
 		b.WriteString(indent(KV(rows), 2) + "\n")
+		if p.Hosted != nil {
+			b.WriteString(Heading("Hosted component") + "\n" + indent(p.Hosted.Details(), 2) + "\n")
+		}
 		if len(p.Connections) > 0 {
 			// What matters is anything talking to another machine; listening
 			// sockets and connections to this PC itself are summarised.

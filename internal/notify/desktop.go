@@ -3,7 +3,9 @@ package notify
 import (
 	"encoding/base64"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"unicode/utf16"
@@ -89,11 +91,14 @@ func Details(a *alerts.Alert) string {
 	var b strings.Builder
 	fmt.Fprintln(&b, a.Summary)
 	if p := a.Process; p != nil {
-		fmt.Fprintf(&b, "\nProgram: %s (pid %d)\n", a.ExeName(), p.PID)
+		fmt.Fprintf(&b, "\nProgram: %s (pid %d)\n", a.ReaderName(), p.PID)
 		if p.Image != "" {
 			fmt.Fprintln(&b, p.Image)
 		}
 		fmt.Fprintf(&b, "Signature: %s\n", p.Signature)
+		if p.Hosted != nil {
+			fmt.Fprintln(&b, p.Hosted.BriefDetails())
+		}
 		if len(p.Parents) > 0 && !p.Parents[0].Exited {
 			fmt.Fprintf(&b, "Started by: %s\n", procBase(p.Parents[0].Image))
 		}
@@ -135,7 +140,7 @@ func ShowPopup(a *alerts.Alert, cli string) {
 		// The question must be one where "Yes" means kill: an earlier "Did you
 		// expect it to read this?" made an honest "yes" kill the program.
 		oneClick := trust.OneClick(a)
-		text := body + "\n" + a.ExeName() + " was frozen while reading " + baitWhat(a) + ".\n" +
+		text := body + "\n" + a.ReaderName() + " was frozen while reading " + baitWhat(a) + ".\n" +
 			"Games, mods, cheats, cracks and \"free\" tools never need to, even ones you started yourself.\n\n" +
 			"Kill it?\n" +
 			"Yes = Kill it (recommended)\n"
@@ -170,9 +175,28 @@ func ShowPopup(a *alerts.Alert, cli string) {
 	case a.Kind == alerts.KindDecoyRetired || a.Process == nil || a.Process.Image == "":
 		messageBox(title, body, mbOK|mbIconInfo)
 	default:
-		// Nothing was done to it: one click to say it's yours.
+		if showDesktopAlert(a, cli) {
+			return
+		}
+		// CLI-only installs retain a native fallback with an explicit freeze choice.
+		st, _ := config.LoadState()
+		a.RefreshControls(st)
+		if a.Controls.CanFreeze && cli != "" {
+			choice := messageBox(title, body+"\n\nFreeze this reader once? All components in this process will pause.\n\nYes = Freeze once (resume later with `sentient1 resume "+a.ID+"`)\nNo = Review trust options\nCancel = Keep alerting", mbYesNoCancel|mbIconWarning)
+			if choice == idYes {
+				if err := RunElevated(cli, "freeze", a.ID); err != nil {
+					messageBox(title, "Freeze was not started: "+err.Error(), mbOK|mbIconError)
+				}
+				return
+			}
+			if choice != idNo {
+				return
+			}
+		} else {
+			body += "\n\nFreeze once unavailable: " + a.Controls.FreezeReason
+		}
 		icon := uint32(mbIconWarning)
-		ask := "\nShould " + a.ExeName() + " be reading " + baitWhat(a) + "?\n\n"
+		ask := "\nShould " + a.ReaderName() + " be reading " + baitWhat(a) + "?\n\n"
 		if _, why := trust.Rule(a); why == "" {
 			ask += "Yes = It's mine: trust it for this, no more alerts about it\n"
 		} else {
@@ -186,6 +210,19 @@ func ShowPopup(a *alerts.Alert, cli string) {
 			RunElevated(cli, "trust", a.ID)
 		}
 	}
+}
+
+func showDesktopAlert(a *alerts.Alert, cli string) bool {
+	if cli == "" || !alerts.ValidID(a.ID) {
+		return false
+	}
+	exe := filepath.Join(filepath.Dir(cli), "sentient1-Desktop.exe")
+	if _, err := os.Stat(exe); err != nil {
+		return false
+	}
+	cmd := exec.Command(exe, "--alert", a.ID)
+	// This is a GUI executable: SW_HIDE would also hide its incident window.
+	return cmd.Run() == nil
 }
 
 // baitWhat names what the program read, for the popup question.

@@ -40,16 +40,19 @@ type BaitHit struct {
 }
 
 type Process struct {
-	PID         uint32              `json:"pid"`
-	Image       string              `json:"image"`
-	CommandLine string              `json:"commandLine,omitempty"`
-	User        string              `json:"user,omitempty"`
-	SHA256      string              `json:"sha256,omitempty"`
-	Signature   authenticode.Result `json:"signature"`
-	Parents     []procinfo.Parent   `json:"parents,omitempty"`
-	Connections []procinfo.Conn     `json:"connections,omitempty"`
-	TreePIDs    []uint32            `json:"treePids,omitempty"`
-	Exited      bool                `json:"exited,omitempty"`
+	DisplayName string               `json:"displayName,omitempty"`
+	CreateTime  int64                `json:"createTime,omitempty"`
+	Hosted      *procinfo.HostedInfo `json:"hosted,omitempty"`
+	PID         uint32               `json:"pid"`
+	Image       string               `json:"image"`
+	CommandLine string               `json:"commandLine,omitempty"`
+	User        string               `json:"user,omitempty"`
+	SHA256      string               `json:"sha256,omitempty"`
+	Signature   authenticode.Result  `json:"signature"`
+	Parents     []procinfo.Parent    `json:"parents,omitempty"`
+	Connections []procinfo.Conn      `json:"connections,omitempty"`
+	TreePIDs    []uint32             `json:"treePids,omitempty"`
+	Exited      bool                 `json:"exited,omitempty"`
 }
 
 type ActionResult struct {
@@ -77,6 +80,7 @@ type Alert struct {
 	Instant    bool             `json:"instant,omitempty"`    // caught the moment it opened the bait (instant freeze), not via the event log
 	Status     string           `json:"status"`               // open | resolved
 	Note       string           `json:"note,omitempty"`
+	Controls   *Controls        `json:"controls,omitempty"` // live UI hints; never persisted
 }
 
 // NewID returns a sortable, unique alert ID.
@@ -114,6 +118,20 @@ func (a *Alert) ExeName() string {
 	return procinfo.BaseName(a.Process.Image)
 }
 
+// ReaderName names the hosted component while retaining the actual executable.
+func (a *Alert) ReaderName() string {
+	if a.Process != nil && a.Process.Hosted != nil {
+		return a.Process.Hosted.Label() + " (via " + a.ExeName() + ")"
+	}
+	return a.ExeName()
+}
+
+func (a *Alert) SetReaderName() {
+	if a.Process != nil {
+		a.Process.DisplayName = a.ReaderName()
+	}
+}
+
 func file(id string) string { return filepath.Join(paths.AlertsDir(), id+".json") }
 
 // Save writes the alert (admin only).
@@ -124,7 +142,9 @@ func Save(a *Alert) error {
 	if err := os.MkdirAll(paths.AlertsDir(), 0o755); err != nil {
 		return err
 	}
-	b, err := json.MarshalIndent(a, "", "  ")
+	saved := *a
+	saved.Controls = nil
+	b, err := json.MarshalIndent(&saved, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -168,6 +188,12 @@ func Load(id string) (*Alert, error) {
 	if !ValidID(a.ID) {
 		return nil, errors.New("alert contains an invalid ID")
 	}
+	if p := a.Process; p != nil && p.Hosted == nil && procinfo.SharedHost(p.Image) {
+		// Historical enrichment uses the saved command line, never a live PID
+		// which may since have been reused. Its provenance is explicitly marked.
+		p.Hosted = procinfo.ResolveHosted(0, p.Image, p.CommandLine, 0)
+	}
+	a.SetReaderName()
 	return a, nil
 }
 

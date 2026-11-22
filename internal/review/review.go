@@ -81,6 +81,9 @@ func Load(version string, limit int) Snapshot {
 		d.Problems = append(d.Problems, err.Error())
 	}
 	if list != nil {
+		for _, a := range list {
+			a.RefreshControls(st)
+		}
 		d.Alerts = list
 	}
 	if len(d.Problems) > 0 && d.Assessment.Level == "healthy" {

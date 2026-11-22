@@ -22,7 +22,7 @@ jobs:
           dotnet-version: '8.0.x'
       - name: Format, vet, test and build Windows desktop
         shell: pwsh
-        run: ./scripts/build.ps1 -Version 1.1.0
+        run: ./scripts/build.ps1
       - name: Selective Windows audit and WFP checks
         shell: pwsh
         env:

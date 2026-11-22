@@ -1,5 +1,34 @@
 # sentient1 changelog
 
+## 1.2.1 — 2026-11-22
+
+- Add Freeze once to detection popups, the dashboard and the elevated CLI.
+- Keep disabled alert buttons readable in the dark theme and ensure native
+  notification windows open visibly.
+- Check the reader's recorded creation time, executable and live process handle
+  before pausing it; reject exited, reused, critical, service and protected
+  desktop processes, with an explanation beside the action.
+- Track manual pauses for Resume once / Release all. Repeated manual clicks do
+  not add suspension counts. A failed state save triggers an immediate resume.
+- Pause only the recorded reader, including all components hosted in it. Manual
+  freezing does not change response policy, trust rules or network access.
+- Install the desktop incident dialog alongside the monitor. CLI-only installs
+  retain a native fallback with a freeze choice when available.
+
+## 1.2.0 — 2026-11-22
+
+- Identify applications hosted by DLLHost using packaged and classic COM
+  registration, loaded DLL paths and component signatures, without vendor rules.
+- Identify the DLL named by Rundll32 and the services running in a Svchost PID.
+  Shared or unresolved hosts remain explicitly ambiguous.
+- Show hosted-component names in alerts, notifications, detection lists and
+  readable evidence; include component provenance in JSON and HTML reports.
+- Resolve older DLLHost alerts from their saved command lines and current
+  registration, explicitly labelled as historical enrichment.
+- Keep detection severity unchanged. Shared hosts cannot acquire permanent trust
+  through the alert button, and one host's notification cannot silence another.
+- Add the read-only `sentient1 inspect <pid> --json` diagnostic.
+
 ## 1.1.0 — 2026-11-21
 
 - Integrated Setup, navigation, response confirmations and live command output in

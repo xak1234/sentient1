@@ -40,11 +40,14 @@ func FromAlert(a *alerts.Alert) Message {
 		fmt.Fprintf(&b, "• %s %s\n", h.Access, h.Name)
 	}
 	if a.Process != nil {
-		fmt.Fprintf(&b, "Process: %s (pid %d)\n", a.ExeName(), a.Process.PID)
+		fmt.Fprintf(&b, "Process: %s (pid %d)\n", a.ReaderName(), a.Process.PID)
 		if a.Process.Image != "" {
 			fmt.Fprintf(&b, "Path: %s\n", a.Process.Image)
 		}
 		fmt.Fprintf(&b, "Signature: %s\n", a.Process.Signature)
+		if a.Process.Hosted != nil {
+			b.WriteString(a.Process.Hosted.BriefDetails())
+		}
 	}
 	for _, r := range a.Actions {
 		mark := "✓"

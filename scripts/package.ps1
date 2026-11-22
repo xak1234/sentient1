@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string]$Version = '1.1.0', [switch]$SkipBuild)
+param([string]$Version = '1.2.1', [switch]$SkipBuild)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 Push-Location $projectRoot

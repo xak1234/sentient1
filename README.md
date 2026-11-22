@@ -7,7 +7,7 @@ When a program reads one, it records the reader's identity and evidence, then
 applies the response policy you chose. Review detections, configure protection
 and run diagnostics from one dark, green-terminal interface.
 
-[Download Windows v1.1.0](https://github.com/xak1234/sentient1/releases/tag/v1.1.0) ·
+[Download Windows v1.2.1](https://github.com/xak1234/sentient1/releases/tag/v1.2.1) ·
 [Detection method](#how-file-reads-are-detected) · [Security model](SECURITY.md) ·
 [Changelog](CHANGELOG.md)
 
@@ -19,7 +19,7 @@ project, with its own desktop, service identity, validation and recovery changes
 
 ## Run
 
-1. Download and extract **sentient1_1.1.0_Windows_x64_Source.zip** from the release.
+1. Download and extract **sentient1_1.2.1_Windows_x64_Source.zip** from the release.
 2. Install the [.NET 8 Desktop Runtime x64](https://dotnet.microsoft.com/en-us/download/dotnet/8.0) if it is not already present.
 3. Open **sentient1-Desktop.exe**, choose **Setup**, review the options and apply.
 
@@ -70,6 +70,44 @@ reader. That inference can be wrong, so it is off by default and labelled in the
 UI. An audited read proves access, not malicious intent. There is no trained AI
 classifier or general executable-signature scanner in this project.
 
+## Manual Freeze once (1.2.1)
+
+A detection popup and the Detections page now offer **Freeze once**. It pauses
+that reader until **Resume once** (or **Release all**), without changing trust,
+automatic response policy or network access. A shared host pauses all components
+in that process; its other instances and child processes are not paused.
+
+The button explains when freezing is unavailable. It requires a live process
+matching the recorded creation time and executable. Older alerts without a
+creation time, exited readers, Windows critical processes, system services and
+protected desktop processes cannot be manually frozen. The elevated command
+rechecks eligibility when clicked; a stale popup cannot select a reused PID.
+
+Administrator CLI: `sentient1 freeze <alert-id>` and
+`sentient1 resume <alert-id>`. Repeated manual freeze requests are idempotent.
+The desktop is included in the normal install; command-only installs use the
+native popup fallback. Standard Windows UAC applies to response actions.
+
+## Hosted application identity (1.2.0)
+
+Alerts name the component inside a shared Windows executable, for example
+**Malwarebytes Anti-Malware (via dllhost.exe)**. Identification is generic:
+packaged and classic COM registration for DLLHost, the DLL argument for Rundll32,
+and Service Control Manager process mappings for Svchost. Loaded DLL paths and
+component signatures are recorded when available. Multiple components and
+unresolved identities are shown explicitly; a familiar name never lowers severity.
+
+Older detections can show **(registered)**, resolved from the saved command line
+and current machine registration. This is labelled as current enrichment, not
+historical proof. Component metadata cannot determine the exact function that
+read the decoy. Approving a shared-host alert is one-time only: it does not add
+permanent trust for every component using that executable.
+
+To inspect a currently running host without opening a decoy, use
+`sentient1 inspect <pid> --json`. A typical confirmed result has
+`displayName: "Malwarebytes Anti-Malware (via dllhost.exe)"`,
+`hosted.status: "observed"`, and the matching component DLL/signature evidence.
+
 ## What is improved
 
 | Area | sentient1 behaviour |
@@ -111,7 +149,7 @@ and pin the updated application once.
 
 ```powershell
 .\sentient1.exe --version
-# sentient1 1.1.0
+# sentient1 1.2.1
 
 .\sentient1.exe status --json
 # Before installation: product="sentient1", installed=false,

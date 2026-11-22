@@ -80,6 +80,8 @@ func alertsCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			st, _ := config.LoadState()
+			a.RefreshControls(st)
 			b, _ := json.MarshalIndent(a, "", "  ")
 			fmt.Println(string(b))
 			return nil

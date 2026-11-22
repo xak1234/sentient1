@@ -531,7 +531,7 @@ func (e *Engine) handle(oa *evtlog.ObjectAccess, preFrozen []uint32) {
 		ID: alerts.NewID(now), Time: now, Kind: alerts.KindRead, Tier: v.Tier, Verdict: v,
 		Learning: learning && v.Tier != config.TierCritical && len(cfg.Responses[v.Tier]) > 0, Test: test, Status: "open",
 		Baits:   []alerts.BaitHit{hit},
-		Process: &alerts.Process{PID: oa.ProcessID, Image: image, User: oa.User, Signature: sig},
+		Process: &alerts.Process{PID: oa.ProcessID, Image: image, User: oa.User, Signature: sig, CreateTime: createTime},
 	}
 	a.Instant = instant && len(frozen) > 0
 	if access == "delete" {
@@ -560,6 +560,7 @@ func (e *Engine) handle(oa *evtlog.ObjectAccess, preFrozen []uint32) {
 
 	// 5. Forensics while frozen.
 	e.Ops.Forensics(oa.ProcessID, a.Process)
+	a.SetReaderName()
 
 	// 6. Remaining responses.
 	var blocked, isolated bool
@@ -636,7 +637,7 @@ func (e *Engine) handle(oa *evtlog.ObjectAccess, preFrozen []uint32) {
 	// Script hosts and runtimes are never quieted: the next script could be a
 	// different one. Neither are critical alerts.
 	if !test && len(a.Actions) == 0 && !v.DecoyOwner && v.Tier != config.TierCritical &&
-		!classify.ScriptHost(image) && e.repeat(image, baitID, now) {
+		!classify.ScriptHost(image) && !procinfo.SharedHost(image) && e.repeat(image, baitID, now) {
 		// Same program, same bait, nothing done about it: it's in the history,
 		// but don't pop up on every launch of an app you haven't marked yet.
 		e.Ops.Logf("alert %s: repeat of %s reading %s, not notified again", a.ID, image, baitID)
@@ -845,7 +846,7 @@ func (e *Engine) repeat(image, baitID string, now time.Time) bool {
 }
 
 func (e *Engine) describe(a *alerts.Alert, v classify.Verdict) {
-	exe := a.ExeName()
+	exe := a.ReaderName()
 	what := "read"
 	if a.Kind == alerts.KindDelete {
 		what = "deleted"
@@ -909,10 +910,16 @@ func (e *Engine) SystemAlert(kind string, tier config.Tier, title, summary strin
 
 // ProcessDetails is the default Forensics implementation.
 func ProcessDetails(pid uint32, p *alerts.Process) {
-	if !procinfo.Alive(pid, 0) {
+	if p.CreateTime == 0 {
+		p.CreateTime, _ = procinfo.CreateTime(pid)
+	}
+	if p.CreateTime == 0 || !procinfo.Alive(pid, p.CreateTime) {
 		p.Exited = true
+		p.Hosted = procinfo.ResolveHosted(0, p.Image, p.CommandLine, 0)
+		return
 	}
 	p.CommandLine, _ = procinfo.CommandLine(pid)
+	p.Hosted = procinfo.ResolveHosted(pid, p.Image, p.CommandLine, p.CreateTime)
 	if snap, err := procinfo.Snapshot(); err == nil {
 		p.Parents = procinfo.ParentChain(snap, pid, 4)
 		p.TreePIDs = procinfo.Tree(snap, pid)
@@ -924,5 +931,10 @@ func ProcessDetails(pid uint32, p *alerts.Process) {
 	p.Connections, _ = procinfo.Connections(pids)
 	if p.Image != "" {
 		p.SHA256, _ = procinfo.FileSHA256(p.Image)
+	}
+	if !procinfo.Alive(pid, p.CreateTime) {
+		p.Exited = true
+		p.CommandLine, p.Parents, p.TreePIDs, p.Connections = "", nil, nil, nil
+		p.Hosted = procinfo.ResolveHosted(0, p.Image, "", 0)
 	}
 }
