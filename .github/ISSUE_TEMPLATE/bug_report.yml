@@ -11,7 +11,7 @@ body:
     attributes:
       label: SENTIENT1 version
       description: Output of `sentient1 --version`
-      placeholder: sentient1 1.1.0
+      placeholder: sentient1 1.2.1
     validations:
       required: true
   - type: input

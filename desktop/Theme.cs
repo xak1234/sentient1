@@ -24,7 +24,7 @@ internal static class Theme
     };
     internal static Button Button(string text, bool primary = false)
     {
-        var b = new Button
+        var b = new ThemedButton
         {
             Text = text,
             AutoSize = true,

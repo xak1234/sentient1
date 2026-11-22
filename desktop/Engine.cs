@@ -68,7 +68,7 @@ internal static class Engine
     internal static string[] Arguments(EngineRequest request)
     {
         if (request.Setup is not null && request.Operation != "apply") throw new InvalidOperationException("Unexpected setup payload.");
-        if (request.Operation is "resume" or "trust" or "kill")
+        if (request.Operation is "freeze" or "resume" or "trust" or "kill")
         {
             var id = request.AlertId;
             if (string.IsNullOrWhiteSpace(id) || id.Length > 128 || id.Any(c => !char.IsAsciiLetterOrDigit(c) && c != '-' && c != '_'))

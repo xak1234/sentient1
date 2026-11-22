@@ -9,7 +9,7 @@
     <AnalysisLevel>8.0</AnalysisLevel>
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <AssemblyName>sentient1-Desktop</AssemblyName>
-    <Version>1.1.0</Version>
+    <Version>1.2.1</Version>
     <ApplicationIcon>Assets/sentient1.ico</ApplicationIcon>
     <Product>sentient1</Product>
     <Description>Decoy defence and incident review</Description>

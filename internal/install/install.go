@@ -131,6 +131,14 @@ func Steps(o Options) []Step {
 					return "", fmt.Errorf("%s: %w", dst, err)
 				}
 			}
+			// The optional desktop supplies labelled incident actions for popups.
+			desktop := filepath.Join(filepath.Dir(self), "sentient1-Desktop.exe")
+			destination := filepath.Join(paths.InstallDir(), "sentient1-Desktop.exe")
+			if _, err := os.Stat(desktop); err == nil && !paths.Same(desktop, destination) {
+				if err := CopyFile(desktop, destination); err != nil {
+					return "", fmt.Errorf("install desktop: %w", err)
+				}
+			}
 			return paths.InstallDir(), nil
 		}},
 		{Name: "Locking down the data folder", Run: func() (string, error) {

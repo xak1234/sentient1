@@ -322,7 +322,7 @@ func (c *Classifier) decide(image string, pid uint32, bait Bait, sig *authentico
 			return Verdict{Tier: config.TierInfo, Reasons: []string{"Windows component", sigNote}}
 		}
 		if valid {
-			return Verdict{Tier: config.TierWarn, Reasons: []string{name + " (part of Windows) has no reason to read app data: fine if you were copying or opening these files yourself, but malware also hides inside Windows programs", sigNote}}
+			return Verdict{Tier: config.TierWarn, Reasons: []string{name + " (part of Windows) read a monitored decoy. Legitimate shell extensions and other hosted components can trigger this; review the component evidence before deciding", sigNote}}
 		}
 		return Verdict{Tier: config.TierWarn, Reasons: []string{"unsigned program inside the Windows folder", sigNote}}
 	case locProgramFiles:

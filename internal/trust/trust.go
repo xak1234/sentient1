@@ -32,6 +32,9 @@ func Rule(a *alerts.Alert) (rule config.IgnoreRule, why string) {
 		return rule, "SENTIENT1 doesn't know which program it was"
 	}
 	exe := filepath.Base(p.Image)
+	if procinfo.SharedHost(p.Image) {
+		return rule, exe + " hosts other components; approving this alert cannot permanently trust the shared executable"
+	}
 	swept := len(a.Verdict.Swept) > 0
 	windows := (&classify.Classifier{Env: classify.DefaultEnv()}).WindowsBinary(p.Image)
 
